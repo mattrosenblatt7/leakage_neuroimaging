@@ -18,10 +18,11 @@ from scipy import stats
 from neuroCombat import neuroCombat, neuroCombatFromTraining
 from sklearn.linear_model import LinearRegression
 
+# NOTE: double check that replacing x in dataset doesn't actually replace things
+# Might want to look for patterns across seeds to make sure
+
 def zscore(a):
-    '''
-    Function to return a z-scored version of input a
-    '''
+    
     a_mean = a.mean()
     a_sd = a.std()
     a_z = (a-a_mean) / a_sd
@@ -29,14 +30,11 @@ def zscore(a):
     return a_z, a_mean, a_sd
 
 def r_to_p(r, n):
-    '''
-    Function to convert r values to p values
-    '''
     t = r / np.sqrt((1-r**2)/ (n-2) )
     p = 2*stats.t.sf(abs(t), df=n-2)
     return p
 
-# Set up parser and arguments
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--leakage_type", type=str, help="which leakage to perform",
                     choices=['gold', 'gold_zscore', 'leak_zscore',
@@ -45,23 +43,27 @@ parser.add_argument("--leakage_type", type=str, help="which leakage to perform",
                              'leak_subj_10', 'leak_subj_20',
                              'gold_minus_site', 'gold_minus_covars',
                             'gold_minus_site_covars'],
-                    default='gold')  # which form of leakage to run
-parser.add_argument("--k", type=int, help="k-folds", default=5)  # how many folds of cross-validation
-parser.add_argument("--per_feat", type=float, help="percentage of features", default=0.05)  # percentage of features to use
+                    default='gold')
+parser.add_argument("--k", type=int, help="k-folds", default=5)
+parser.add_argument("--per_feat", type=float, help="percentage of features", default=0.05)
+parser.add_argument("--resample_size", type=int, help="number of points in resample", default=100, choices=[100, 200, 300, 400])
+parser.add_argument("--resample_seed", type=int, help="seed of resampling procedure", default=0)
 
-# Parse arguments
 args = parser.parse_args()
 leakage_type = args.leakage_type
 k = args.k
 per_feat = args.per_feat
+resample_seed = args.resample_seed
+resample_size = args.resample_size
 
+print('arguments parsed, starting script...')
 
 # custom scorer (Pearson's r) for grid search
 def my_custom_loss_func(y_true, y_pred):
     return np.corrcoef(y_true, y_pred)[0, 1]
 score = make_scorer(my_custom_loss_func, greater_is_better=True)
 
-# Set dataset names
+# Load in dataset
 if 'site' in leakage_type:
     dataset_names = ['hbn', 'hcpd', 'abcd']  # no site info for PNC
 elif leakage_type=='leak_family':
@@ -69,14 +71,12 @@ elif leakage_type=='leak_family':
 else:
     dataset_names = ['hbn', 'hcpd', 'pnc', 'abcd']
 
-
-# Set number of sample sizes, resamples, and iterations of k-fold CV    
-resample_size_all = [100, 200, 300, 400]
+    
 num_resamples = 10
 num_kfold_repeats = 10
 
-# three phenotypes in this study
-pheno_all = ['mr', 'attn', 'age']  
+pheno_all = ['age', 'mr', 'attn']
+
 
 # loop over phenotypes   
 for pheno in pheno_all:   
@@ -120,194 +120,187 @@ for pheno in pheno_all:
         if 'site' in all_keys:
             site_full = np.array(datasets[train_dataset]['behav']['site'])
         
-        # loop over sample sizes
-        for resample_size in resample_size_all:
-            
-            # loop over resample seeds
-            for resample_seed in range(num_resamples):
-                
-                # dataset resampling
-                random.seed(resample_seed)
-                if train_dataset=='abcd':  # for ABCD, resample only among largest 4 sites
-                    sites_to_include_idx = np.where(np.isin(site_full, [10, 12, 13, 16]))[0]
-                    family_ids = datasets[train_dataset]['behav']['family_id'].values[sites_to_include_idx]
-                    unique_family_ids = np.unique(family_ids)
-                    unique_family_ids_shuffled = unique_family_ids[np.random.permutation(len(unique_family_ids))]
-                    idx_by_family = []
-                    for fid in unique_family_ids_shuffled:
-                        idx_by_family.extend( sites_to_include_idx[np.where(family_ids==fid)[0]] )
-                    dataset_resample_idx = idx_by_family[:resample_size]
+        
+        # dataset resampling
+        np.random.seed(resample_seed)
+        random.seed(resample_seed)
+        if train_dataset=='abcd':  # for ABCD, resample only among largest 4 sites
+            sites_to_include_idx = np.where(np.isin(site_full, [10, 12, 13, 16]))[0]
+            family_ids = datasets[train_dataset]['behav']['family_id'].values[sites_to_include_idx]
+            unique_family_ids = np.unique(family_ids)
+            unique_family_ids_shuffled = unique_family_ids[np.random.permutation(len(unique_family_ids))]
+            idx_by_family = []
+            for fid in unique_family_ids_shuffled:
+                idx_by_family.extend( sites_to_include_idx[np.where(family_ids==fid)[0]] )
+            dataset_resample_idx = idx_by_family[:resample_size]
 
-                elif train_dataset=='hcpd':  # for HCPD, resample by family to maintain same proportion of families
-                    family_ids = datasets[train_dataset]['behav']['family_id'].values
-                    unique_family_ids = datasets[train_dataset]['behav']['family_id'].unique()
-                    unique_family_ids_shuffled = unique_family_ids[np.random.permutation(len(unique_family_ids))]
-                    idx_by_family = []
-                    for fid in unique_family_ids_shuffled:
-                        idx_by_family.extend(np.where(family_ids==fid)[0])
-                    dataset_resample_idx = idx_by_family[:resample_size]
-                else:  # otherwise, resample at random
-                    dataset_resample_idx = np.array(random.sample(range(len(y_full)), resample_size))  # random sample idx
+        elif train_dataset=='hcpd':
+            family_ids = datasets[train_dataset]['behav']['family_id'].values
+            unique_family_ids = datasets[train_dataset]['behav']['family_id'].unique()
+            unique_family_ids_shuffled = unique_family_ids[np.random.permutation(len(unique_family_ids))]
+            idx_by_family = []
+            for fid in unique_family_ids_shuffled:
+                idx_by_family.extend(np.where(family_ids==fid)[0])
+            dataset_resample_idx = idx_by_family[:resample_size]
+        else:
+            dataset_resample_idx = np.array(random.sample(range(len(y_full)), resample_size))  # random sample idx
 
-                # loop over seeds
-                for kfold_seed in range(num_kfold_repeats):
+        # loop over seeds
+        for kfold_seed in range(num_kfold_repeats):
 
-                    # get data subsets
-                    # need to do this every time in case using subject leakage type
-                    X = X_full[dataset_resample_idx, :]
-                    y = y_full[dataset_resample_idx]
-                    n = len(y)
-                    C_all = C_all_full[dataset_resample_idx, :]  # covariates
-                    if 'site' in all_keys:
-                        site = site_full[dataset_resample_idx]
-                    
-                    # set save name and skip if this file already exists
-                    save_name = os.path.join('/home/mjr239/project/leakage/leakage_results/resample',
-                                 leakage_type,
-                                 pheno + '_' + train_dataset + '_k' + str(k) + '_perfeat' + str(per_feat) + \
-                                             'resamplesize_' + str(resample_size) + \
-                                             'resampleseed_' + str(resample_seed) + '_kfoldseed_' + str(kfold_seed) +  '.npz'
-                                )
-                    if os.path.isfile(save_name):
-                        print('exists')
-                        continue
+            # need to do this every time in case using subject leakage type
+            X = X_full[dataset_resample_idx, :]
+            y = y_full[dataset_resample_idx]
+            n = len(y)
+            C_all = C_all_full[dataset_resample_idx, :]
+            if 'site' in all_keys:
+                site = site_full[dataset_resample_idx]
+            # note: family IDs resampled later (only if present)
 
-                    # subject leakage
-                    if 'leak_subj' in leakage_type:
-                        random.seed(kfold_seed)
-                        perc_leakage = int(leakage_type.split('_')[-1])  # get percentage of subject leakage (5, 10, 20% in this study)
-                        print('******** Leakage percentage ' + str(perc_leakage) + '*********')
-                        leakage_resample_idx = np.array(random.sample(range(n), round(perc_leakage/100*n)))  # random sample idx
+            save_name = os.path.join('/home/mjr239/project/leakage/leakage_results/resample',
+                         leakage_type,
+                         pheno + '_' + train_dataset + '_k' + str(k) + '_perfeat' + str(per_feat) + \
+                                     'resamplesize_' + str(resample_size) + \
+                                     'resampleseed_' + str(resample_seed) + '_kfoldseed_' + str(kfold_seed) +  '.npz'
+                        )
+            # skip if file exists already
+            if os.path.isfile(save_name):
+                print('exists')
+                continue
+
+
+            # subject leakage
+            if 'leak_subj' in leakage_type:
+                np.random.seed(kfold_seed)
+                random.seed(kfold_seed)
+                perc_leakage = int(leakage_type.split('_')[-1])
+                print('******** Leakage percentage ' + str(perc_leakage) + '*********')
+                leakage_resample_idx = np.array(random.sample(range(n), round(perc_leakage/100*n)))  # random sample idx
+                X = np.vstack((X, X[leakage_resample_idx, :]))
+                y = np.hstack((y, y[leakage_resample_idx]))
+                if 'site' in all_keys:
+                    site = np.hstack((site, site[leakage_resample_idx]))
+                C_all = np.vstack((C_all, C_all[leakage_resample_idx, :]))
+                n = len(y)
+
+            # feature selection leakage
+            if leakage_type=='leak_feature':
+                r = r_regression(X, y)
+                p = r_to_p(r, n) 
+                pthresh = np.percentile(p, 100*per_feat)
+                leaky_feat_loc = np.where(p<pthresh)[0]
+            else:
+                pass
+
+            # z-score behavioral variable leakage
+            if leakage_type=='leak_zscore':
+                y, _, _ = zscore(y)
+
+            # z-scoring without leakage
+            if leakage_type=='gold_zscore':  # initialize this so we can save
+                y_z = np.zeros((n,))
+
+            # leakage for covariate regression in whole dataset
+            if leakage_type=='leak_covars':
+                ntrain, _ = X.shape
+                Beta = np.matmul( np.matmul( np.linalg.inv( np.matmul(C_all.T, C_all)), C_all.T), X)
+                X = X - np.matmul(C_all, Beta)    
+
+            # site correction (i.e., ComBat) leakage
+            if leakage_type=='leak_site':
+                covars = {'batch':site} 
+                covars = pd.DataFrame(covars)  
+                data_combat = neuroCombat(dat=X.T,
+                    covars=covars,
+                    batch_col='batch')
+                X = data_combat['data'].T
+
+            # kfold CV
+            if (leakage_type=='leak_family') or ('family_id' not in datasets[train_dataset]['behav'].keys()) \
+  or ('subj' in leakage_type): 
+                n_split = n
+            else:
+                family_ids = np.array(datasets[train_dataset]['behav']['family_id'])[dataset_resample_idx]
+                unique_family_ids = np.unique(family_ids)
+                n_split = len(unique_family_ids)
+
+            kf = KFold(n_splits=k, shuffle=True, random_state=kfold_seed)
+            yp = np.zeros((n,)) 
+            fold_assignment = np.zeros((n,))
+            for fold_idx, (train_idx, test_idx) in tqdm(enumerate(kf.split(np.arange(n_split)))):
+                # modify train/test selection for family structure
+                if (leakage_type=='leak_family') or ('family_id' not in datasets[train_dataset]['behav'].keys()) \
+  or ('subj' in leakage_type):
+                    pass
+                else:
+                    family_train_ids = unique_family_ids[train_idx]
+                    family_test_ids = unique_family_ids[test_idx]
+                    train_idx = np.where([id in family_train_ids for id in family_ids])[0]
+                    test_idx = np.where([id in family_test_ids for id in family_ids])[0]                    
+
+                # get train/test splits
+                X_train = X[train_idx, :]
+                y_train = y[train_idx]
+                X_test = X[test_idx, :]
+                y_test = y[test_idx]
+                fold_assignment[test_idx] = fold_idx
+
+                # proper within-fold z-scoring
+                if leakage_type=='gold_zscore':
+                    y_train, y_train_mean, y_train_sd = zscore(y_train)
+                    y_test = (y_test - y_train_mean) / y_train_sd
+                    y_z[test_idx] = y_test  # save z-scored for comparison
+
+                # correct for covars (unless doing covariate leakage)
+                if (leakage_type!='leak_covars') and (leakage_type!='gold_minus_covars') and (leakage_type!='gold_minus_site_covars'):
+                    ntrain, _ = X_train.shape
+                    C_train = C_all[train_idx, :]
+                    Beta = np.matmul( np.matmul( np.linalg.inv( np.matmul(C_train.T, C_train)), C_train.T), X_train)
+                    X_train = X_train - np.matmul(C_train, Beta)
+
+                    C_test = C_all[test_idx, :]
+                    X_test = X_test - np.matmul(C_test, Beta)          
+
+                # correct for site (only if site is a variable and we are not looking at site leakage)
+                if ('site' in all_keys) and (leakage_type!='leak_site') \
+                  and (leakage_type!='gold_minus_site') and (leakage_type!='gold_minus_site_covars'):
+                    covars = {'batch':site[train_idx]}
+                    covars = pd.DataFrame(covars) 
+                    data_combat = neuroCombat(dat=X_train.T,
+                                              covars=covars,
+                                              batch_col='batch')
+                    X_train = data_combat['data'].T
+
+                    # apply to test data
+                    test_combat_results = neuroCombatFromTraining(dat=X_test.T,
+                                                      batch=site[test_idx],
+                                                      estimates=data_combat['estimates'])
+                    X_test = test_combat_results['data'].T
+
+                # feature selection 
+                if leakage_type=='leak_feature':
+                    sig_feat_loc = np.copy(leaky_feat_loc)
+                else:
+                    r = r_regression(X_train, y_train)
+                    p = r_to_p(r, len(train_idx)) 
+                    pthresh = np.percentile(p, 100*per_feat)
+                    sig_feat_loc = np.where(p<pthresh)[0]
+
+                # fit model
+                inner_cv = KFold(n_splits=k, shuffle=True, random_state=kfold_seed)
+                regr = GridSearchCV(estimator=Ridge(), param_grid={'alpha':np.logspace(-3, 3, 7)},
+                               cv=inner_cv, scoring=score)
+                regr.fit(X_train[:, sig_feat_loc], y_train)
+
+
+                # now test
+                yp[test_idx] = regr.predict(X_test[:, sig_feat_loc])       
+
+
+            if leakage_type=='gold_zscore':
+                np.savez(save_name, yp=yp, y_true=y_z,
+                        fold_assignment=fold_assignment)
+            else:
+                np.savez(save_name, yp=yp, y_true=y,
+                        fold_assignment=fold_assignment)
                         
-                        # repeat data points for brain data (X), behavioral data (y), site, and covariates
-                        X = np.vstack((X, X[leakage_resample_idx, :]))
-                        y = np.hstack((y, y[leakage_resample_idx]))
-                        if 'site' in all_keys:
-                            site = np.hstack((site, site[leakage_resample_idx]))
-                        C_all = np.vstack((C_all, C_all[leakage_resample_idx, :]))
-                        n = len(y)
-
-                    # feature selection leakage
-                    if leakage_type=='leak_feature':
-                        r = r_regression(X, y)
-                        p = r_to_p(r, n) 
-                        pthresh = np.percentile(p, 100*per_feat)
-                        leaky_feat_loc = np.where(p<pthresh)[0]
-                    else:
-                        pass
-
-                    # z-score behavioral variable leakage
-                    if leakage_type=='leak_zscore':
-                        y, _, _ = zscore(y)
-
-                    # z-scoring without leakage
-                    if leakage_type=='gold_zscore':  
-                        y_z = np.zeros((n,))  # initialize this so we can save the z-scored results
-
-                    # leakage for covariate regression in whole dataset
-                    if leakage_type=='leak_covars':
-                        ntrain, _ = X.shape
-                        Beta = np.matmul( np.matmul( np.linalg.inv( np.matmul(C_all.T, C_all)), C_all.T), X)
-                        X = X - np.matmul(C_all, Beta)    
-
-                    # site correction (i.e., ComBat) leakage
-                    if leakage_type=='leak_site':
-                        covars = {'batch':site} 
-                        covars = pd.DataFrame(covars)  
-                        data_combat = neuroCombat(dat=X.T,
-                            covars=covars,
-                            batch_col='batch')
-                        X = data_combat['data'].T
-
-                    # kfold CV
-                    if (leakage_type=='leak_family') or ('family_id' not in datasets[train_dataset]['behav'].keys()) \
-          or ('subj' in leakage_type): 
-                        n_split = n  # if no family information, split on the subject (not family) level
-                    else:  # if there is family information, split on the family (not subject) level
-                        family_ids = np.array(datasets[train_dataset]['behav']['family_id'])[dataset_resample_idx]
-                        unique_family_ids = np.unique(family_ids)
-                        n_split = len(unique_family_ids)
-                    # k-fold splits
-                    kf = KFold(n_splits=k, shuffle=True, random_state=kfold_seed)
-                    yp = np.zeros((n,))  # initialize predicted y
-                    fold_assignment = np.zeros((n,))  # initialize which fold each point is in 
-                    
-                    # loop over folds
-                    for fold_idx, (train_idx, test_idx) in tqdm(enumerate(kf.split(np.arange(n_split)))):
-                        # modify train/test selection for family structure
-                        if (leakage_type=='leak_family') or ('family_id' not in datasets[train_dataset]['behav'].keys()) \
-          or ('subj' in leakage_type):
-                            pass
-                        else:  # get train/test indices based on family structure
-                            family_train_ids = unique_family_ids[train_idx]
-                            family_test_ids = unique_family_ids[test_idx]
-                            train_idx = np.where([id in family_train_ids for id in family_ids])[0]
-                            test_idx = np.where([id in family_test_ids for id in family_ids])[0]                    
-
-                        # get train/test splits
-                        X_train = X[train_idx, :]
-                        y_train = y[train_idx]
-                        X_test = X[test_idx, :]
-                        y_test = y[test_idx]
-                        fold_assignment[test_idx] = fold_idx
-
-                        # proper within-fold z-scoring
-                        if leakage_type=='gold_zscore':
-                            y_train, y_train_mean, y_train_sd = zscore(y_train)
-                            y_test = (y_test - y_train_mean) / y_train_sd
-                            y_z[test_idx] = y_test  # save z-scored for comparison
-
-                        # correct for covars (unless doing covariate leakage)
-                        if (leakage_type!='leak_covars') and (leakage_type!='gold_minus_covars') and (leakage_type!='gold_minus_site_covars'):
-                            # fit in training data
-                            ntrain, _ = X_train.shape
-                            C_train = C_all[train_idx, :]
-                            Beta = np.matmul( np.matmul( np.linalg.inv( np.matmul(C_train.T, C_train)), C_train.T), X_train)
-                            X_train = X_train - np.matmul(C_train, Beta)
-                            
-                            # apply covariate regression to test data
-                            C_test = C_all[test_idx, :]
-                            X_test = X_test - np.matmul(C_test, Beta)          
-
-                        # correct for site (only if site is a variable and we are not looking at site leakage)
-                        if ('site' in all_keys) and (leakage_type!='leak_site') \
-                          and (leakage_type!='gold_minus_site') and (leakage_type!='gold_minus_site_covars'):
-                            # first performn it in the training data
-                            covars = {'batch':site[train_idx]}
-                            covars = pd.DataFrame(covars) 
-                            data_combat = neuroCombat(dat=X_train.T,
-                                                      covars=covars,
-                                                      batch_col='batch')
-                            X_train = data_combat['data'].T
-
-                            # apply to test data
-                            test_combat_results = neuroCombatFromTraining(dat=X_test.T,
-                                                              batch=site[test_idx],
-                                                              estimates=data_combat['estimates'])
-                            X_test = test_combat_results['data'].T
-
-                        # feature selection 
-                        if leakage_type=='leak_feature':  # feature leakage, use features from whole dataset
-                            sig_feat_loc = np.copy(leaky_feat_loc)
-                        else:  # otherwise get features in training data only
-                            r = r_regression(X_train, y_train)
-                            p = r_to_p(r, len(train_idx)) 
-                            pthresh = np.percentile(p, 100*per_feat)
-                            sig_feat_loc = np.where(p<pthresh)[0]
-
-                        # fit model
-                        inner_cv = KFold(n_splits=k, shuffle=True, random_state=kfold_seed)  # nested cross-validation loop
-                        regr = GridSearchCV(estimator=Ridge(), param_grid={'alpha':np.logspace(-3, 3, 7)},
-                                       cv=inner_cv, scoring=score)
-                        regr.fit(X_train[:, sig_feat_loc], y_train)
-
-                        # now test
-                        yp[test_idx] = regr.predict(X_test[:, sig_feat_loc])       
-
-                    # save results
-                    if leakage_type=='gold_zscore':  # if z-scoring within folds, save the new "y" data
-                        np.savez(save_name, yp=yp, y_true=y_z,
-                                fold_assignment=fold_assignment)
-                    else:
-                        np.savez(save_name, yp=yp, y_true=y,
-                                fold_assignment=fold_assignment)
