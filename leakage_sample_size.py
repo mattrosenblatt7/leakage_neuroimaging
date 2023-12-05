@@ -22,7 +22,9 @@ from sklearn.linear_model import LinearRegression
 # Might want to look for patterns across seeds to make sure
 
 def zscore(a):
-    
+    '''
+    Function to return a z-scored version of input a
+    '''
     a_mean = a.mean()
     a_sd = a.std()
     a_z = (a-a_mean) / a_sd
@@ -30,11 +32,14 @@ def zscore(a):
     return a_z, a_mean, a_sd
 
 def r_to_p(r, n):
+    '''
+    Function to convert r values to p values
+    '''
     t = r / np.sqrt((1-r**2)/ (n-2) )
     p = 2*stats.t.sf(abs(t), df=n-2)
     return p
 
-
+# Set up parser and arguments
 parser = argparse.ArgumentParser()
 parser.add_argument("--leakage_type", type=str, help="which leakage to perform",
                     choices=['gold', 'gold_zscore', 'leak_zscore',
@@ -49,6 +54,7 @@ parser.add_argument("--per_feat", type=float, help="percentage of features", def
 parser.add_argument("--resample_size", type=int, help="number of points in resample", default=100, choices=[100, 200, 300, 400])
 parser.add_argument("--resample_seed", type=int, help="seed of resampling procedure", default=0)
 
+# Parse arguments
 args = parser.parse_args()
 leakage_type = args.leakage_type
 k = args.k
@@ -71,12 +77,10 @@ elif leakage_type=='leak_family':
 else:
     dataset_names = ['hbn', 'hcpd', 'pnc', 'abcd']
 
-    
-num_resamples = 10
-num_kfold_repeats = 10
-
+# set some running parameters
+num_resamples = 10  # how many times data will be resampled
+num_kfold_repeats = 10  # number of iterations of cross-validation
 pheno_all = ['age', 'mr', 'attn']
-
 
 # loop over phenotypes   
 for pheno in pheno_all:   
@@ -296,7 +300,7 @@ for pheno in pheno_all:
                 # now test
                 yp[test_idx] = regr.predict(X_test[:, sig_feat_loc])       
 
-
+            # save data
             if leakage_type=='gold_zscore':
                 np.savez(save_name, yp=yp, y_true=y_z,
                         fold_assignment=fold_assignment)
