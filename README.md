@@ -1,4 +1,4 @@
-This repository includes data and code for the preprint [*The effects of data leakage on neuroimaging predictive models*](https://github.com/mattrosenblatt7/leakage_neuroimaging)
+This repository includes data and code for the preprint [*The effects of data leakage on neuroimaging predictive models*](https://www.biorxiv.org/content/10.1101/2023.06.09.544383v1)
 
 The following code and data are for non-commercial and academic purposes only.
 
@@ -20,6 +20,26 @@ You can input the type of leakage you want to perform, the start/end random seed
 
 ```
 python run_leakage.py --leakage_type leak_feature --model_type ridge
+```
+
+# Family leakage analysis
+
+Our family analysis scripts are in the folder [family_analysis](family_analysis).
+
+We ran a twin analysis in the file [run_twin_analysis.py](https://github.com/mattrosenblatt7/leakage_neuroimaging/blob/main/family_analysis/run_twin_analysis.py).
+
+You can input the phenotype and the seed.
+
+```
+python run_twin_analysis.py --pheno age --seed 0
+```
+
+We ran a simulation analysis varying the percentage of participants belonging to a family with multiple members in the dataset in the file [run_family_leakage_simulation.py](https://github.com/mattrosenblatt7/leakage_neuroimaging/blob/main/family_analysis/run_family_leakage_simulation.py).
+
+You can input the phenotype and the seed.
+
+```
+python run_family_leakage_simulation.py --pheno age --seed 0
 ```
 
 # Plotting
