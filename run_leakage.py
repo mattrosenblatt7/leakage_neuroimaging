@@ -66,14 +66,6 @@ per_feat = args.per_feat
 dti = args.dti
 model_type = args.model_type
 
-# # leakage params
-# leakage_type = 'gold'
-# start_seed = 0
-# end_seed = 0
-# # training hyperparameters
-# k = 5
-# per_feat = 0.05
-
 # custom scorer (Pearson's r) for grid search
 def my_custom_loss_func(y_true, y_pred):
     return np.corrcoef(y_true, y_pred)[0, 1]
@@ -323,7 +315,7 @@ for pheno in pheno_all:
                 if model_type=='ridge':
                     coef_all[sig_feat_loc, fold_idx] = regr.best_estimator_.coef_
                       
-
+            # save results
             if model_type=='ridge':  # save coef for ridge only
                 if leakage_type=='gold_zscore':  # if z-scoring within folds, save the new "y" data
                     np.savez(save_name, yp=yp, y_true=y_z, coef=np.mean(coef_all, axis=1),
