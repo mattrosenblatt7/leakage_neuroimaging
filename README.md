@@ -4,7 +4,7 @@ The following code and data are for non-commercial and academic purposes only.
 
 # Software requirements
 
-This code requires Python 3. While it may work with various versions of Python and the following packages, the code was specifically developed and tested with Python 3.11.3 and the following packages:
+This code requires Python 3. While it may work with various versions of Python and the following packages, the code was specifically developed and tested with Linux verison 8.8, Python 3.11.3, and the following packages:
 
 * mat73 0.60
 * matplotlib 3.8.0
@@ -15,7 +15,7 @@ This code requires Python 3. While it may work with various versions of Python a
 * seaborn 0.13.0
 * tqdm 4.66.1
 
-Beyond installing python and these packages, no specific installation is required. Installation of python and the packages should take about 10 minutes. To reproduce the plots without any installation required, please see the **Plotting** section. Please note that the analysis in this paper is likely not practical to run on a personal computer, due to the many simulations and computational resources involved. In addition, the data cannot be shared, but please see the **Datasets** section below for links to the unprocessed fMRI data (note: many require applications to access the data).
+Beyond installing python and these packages, no specific installation is required. Installation of python and the packages should take about 10 minutes. To reproduce the plots without any installation required, please see the **Plotting** section. Please note that the analysis in this paper is likely not practical to run on a personal computer, due to the many simulations and computational resources involved. In addition, the data cannot be shared, but please see the **Datasets** section below for links to the unprocessed fMRI data (note: may require applications to access the data).
 
 # Main leakage analysis
 
