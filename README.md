@@ -1,4 +1,4 @@
-This repository includes data and code for the preprint [*The effects of data leakage on neuroimaging predictive models*](https://www.biorxiv.org/content/10.1101/2023.06.09.544383v1)
+This repository includes data and code for the article [*Data leakage inflates prediction performance in connectome-based machine learning models*](https://www.biorxiv.org/content/10.1101/2023.06.09.544383v1)
 
 The following code and data are for non-commercial and academic purposes only.
 
