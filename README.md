@@ -65,13 +65,13 @@ The output of this script is a saved *.npz* file that includes the observed phen
 
 # Plotting
 
-To make plots, our summary data are included in the [data_for_plots](data_for_plots) folder. You can view the notebook [make_plots.ipynb](make_plots.ipynb), which also has a Google Colab link:
+To make plots, our summary data are included in the [data](data) folder. You can view the notebook [make_plots.ipynb](make_plots.ipynb), which also has a Google Colab link:
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/mattrosenblatt7/leakage_neuroimaging/blob/main/make_plots.ipynb)
 
 # Data
 
-Summary data from our experiments are included in the [data_for_plots](data_for_plots) folder. 
+Summary data from our experiments are included in the [data](data) folder. 
 
 * Adolescent Brain Cognitive Development Study (NIMH Data Archive, https://nda.nih.gov/abcd)
 * Healthy Brain Network (International Neuroimaging Data-sharing Initiative, https://fcon_1000.projects.nitrc.org/indi/cmi_healthy_brain_network/)
